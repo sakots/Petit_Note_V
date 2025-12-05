@@ -1,6 +1,6 @@
 # お絵かき掲示板PHPスクリプト Petit Note V
 
-このスクリプトはさとぴあさんの[Petit_Note](https://github.com/satopian/Petit_Note)をフォークしたものです。
+このスクリプトはさとぴあさんの[Petit Note](https://github.com/satopian/Petit_Note)をフォークしたものです。
 
 ![php](https://img.shields.io/badge/php-7.4-green.svg)
 ![php](https://img.shields.io/badge/php-8.x-green.svg)
@@ -26,7 +26,7 @@
 
 ## DEMO
 
-- [Petit Note サンプル掲示板](https://paintbbs.sakura.ne.jp/cgi/neosample/petitnote/)
+- [Petit Note V サンプル掲示板](https://oekaki.link/sample/)
 
 ## ダウンロードと設置
 
@@ -64,9 +64,9 @@ template/ ディレクトリのcssが表示されない時は。
 
 ## それでも動作しない場合は
 
-[設置サポート掲示板](https://paintbbs.sakura.ne.jp/cgi/neosample/support/)をご利用ください。
+[設置サポート掲示板](https://oekaki.link/support/)をご利用ください。
 
-![image](https://user-images.githubusercontent.com/44894014/134553433-d50e05be-a483-4b94-a575-3cead96b6720.png)
+**！注意！** さとぴあさんのサイトでこちらの改造版の質問をしないで下さい
 
 ## 履歴
 
