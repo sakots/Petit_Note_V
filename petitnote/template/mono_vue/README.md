@@ -26,3 +26,9 @@ pnpm install  --save-dev axios
 ```bash
 pnpm install --save-dev simple-icons
 ```
+
+### GLightbox
+
+```bash
+pnpm install --save-dev glightbox
+```
