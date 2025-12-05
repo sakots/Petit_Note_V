@@ -637,6 +637,9 @@ define("CRYPT_PASS","v25Xc9nZ82a5JPT");//暗号鍵初期値
 define("CRYPT_METHOD","aes-128-cbc");
 define("CRYPT_IV","T3pkYxNyjN7Wz3pu");//半角英数16文字
 
+// jQueryライブラリのパス
+define("JQUERY","https://code.jquery.com/jquery-3.6.0.min.js");
+
 /*変更不可*/
 
 // 変更しないでください
