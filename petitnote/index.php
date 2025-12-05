@@ -1945,9 +1945,6 @@ function del(): void {
 		list($id,$no)=explode(",",trim($id_and_no));
 	}
 	$delete_thread=(bool)filter_input_data('POST','delete_thread',FILTER_VALIDATE_BOOLEAN);
-	chmod(LOG_DIR."alllog.log",0600);
-	$fp=fopen(LOG_DIR."alllog.log","r+");
-	file_lock($fp, LOCK_EX);
 
 	$r_arr = get_thread_arr($no);
 
