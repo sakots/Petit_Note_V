@@ -338,13 +338,7 @@ function post(): void {
 	if($resto && $only_admin_can_reply && !$adminpost){
 		error($en?'Only administrator can reply.':'返信できるのは管理者だけです。');
 	}
-
-	if($resto && !is_file(LOG_DIR."{$resto}.log")){//エラー処理
-		if(!$is_painted_img){//お絵かきではない時は
-			error($en? 'The article does not exist.':'記事がありません。');
-		}
-		$resto='';//レス先がないお絵かきは新規投稿扱いにする。
-	}
+	//レス先のログファイルを開いて配列を作成
 	$count_r_arr=0;
 	$r_oya='';
 	$r_no='';
@@ -353,32 +347,13 @@ function post(): void {
 	$chk_resto='';
 	if($resto){//レスの時はファイルロックしてレスファイルを開く
 		check_open_no($resto);
-		chmod(LOG_DIR."{$resto}.log",0600);
-		$rp=fopen(LOG_DIR."{$resto}.log","r+");
-		file_lock($rp, LOCK_EX);
-		$r_arr = create_array_from_fp($rp);
-		if(empty($r_arr)){
-			closeFile($rp);
-			if(!$is_painted_img){
-				error($en?'This operation has failed.':'失敗しました。');
-			}
-			$chk_resto=$resto;
-			$resto = '';
-		}
+		$r_arr = get_thread_arr($resto);
 
 		list($r_no,$oyasub,$n_,$v_,$c_,$u_,$img_,$_,$_,$thumb_,$pt_,$hash_,$to_,$pch_,$postedtime,$fp_time_,$h_,$uid_,$h_,$r_oya)=explode("\t",trim($r_arr[0]));
 		//レスファイルの1行目のチェック。経過日数、ログの1行目が'oya'かどうか確認。
 		$check_elapsed_days = check_elapsed_days($postedtime);
 		$count_r_arr=count($r_arr);
 
-		//レス先のログファイルを再確認
-		if($resto && ($r_no!==$resto || $r_oya!=='oya')){
-			if(!$is_painted_img){
-				error($en? 'The article does not exist.':'記事がありません。');
-			}
-			$chk_resto=$resto;
-			$resto='';
-		}
 		if($is_painted_img){//お絵かきの時は新規投稿にする
 			//お絵かきの時に日数を経過していたら新規投稿。
 			//お絵かきの時に最大レス数を超過していたら新規投稿。
@@ -2079,14 +2054,17 @@ function catalog(): void {
 		if (!trim($line)) {
 			continue;
 		}
-		if ($page <= $oya && $oya < $page + $pagedef) {
-			$_res = create_res(explode("\t", trim($line)), ['catalog' => true]);//$lineから、情報を取り出す
-			$out[$oya][] = $_res;//$lineから、情報を取り出す
-			if (empty($out[$oya])) {
-				unset($out[$oya]);
+		list(,,,,,,,,,,,,,,,$oya_) = explode("\t", trim($line));
+		if ($oya_ === 'oya') {
+			if ($page <= $oya && $oya < $page + $pagedef) {
+				$_res = create_res(explode("\t", trim($line)), ['catalog' => true]);//$lineから、情報を取り出す
+				$out[$oya][] = $_res;//$lineから、情報を取り出す
+				if (empty($out[$oya])) {
+					unset($out[$oya]);
+				}
 			}
+			++$oya;
 		}
-		++$oya;
 	}
 
 	//管理者判定処理
@@ -2158,6 +2136,7 @@ function view(): void {
 		}
 		++$count_alllog;//処理の後半で記事数のカウントとして使用
 	}
+	$article_nos = array_unique($article_nos);
 
 	$index_cache_json = __DIR__.'/template/cache/index_cache.json';
 
@@ -2396,7 +2375,7 @@ function res (): void {
 			continue;
 		}
 		$_res = create_res(explode("\t",trim($line)),['is_badhost'=>$is_badhost]);//$lineから、情報を取り出す
-		if($res_catalog && !$_res['img'] && $_res['oya']!=='oya'){
+		if($res_catalog && !$_res['img']){
 			continue;
 		}
 		if($_res['img']){
