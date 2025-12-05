@@ -2465,3 +2465,52 @@ function res (): void {
 	include __DIR__.'/'.$skindir.$templete;
 	exit();
 }
+
+//そうだね
+function sodane(): void {
+	$resto = filter_input(INPUT_GET, 'resto', FILTER_VALIDATE_INT);
+
+	// Ajaxリクエストかどうかをチェック
+	$is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
+	try {
+		$db = get_db();
+		$stmt = $db->prepare("UPDATE posts SET sodane = sodane + 1 WHERE id = ?");
+		$stmt->execute([$resto]);
+
+		// 更新後のそうだね数を取得
+		$stmt = $db->prepare("SELECT exid FROM posts WHERE id = ?");
+		$stmt->execute([$resto]);
+		$result = $stmt->fetch();
+		$new_exid = $result['exid'] ?? 0;
+
+		$db = null;
+
+		if ($is_ajax) {
+			// Ajaxリクエストの場合はJSONレスポンス
+			header('Content-Type: application/json');
+			echo json_encode([
+				'success' => true,
+				'exid' => $new_exid,
+				'message' => 'そうだねしました'
+			]);
+			return;
+		}
+
+	} catch (PDOException $e) {
+		if ($is_ajax) {
+			header('Content-Type: application/json');
+			echo json_encode([
+				'success' => false,
+				'error' => 'DB接続エラー:' . $e->getMessage()
+			]);
+			return;
+		} else {
+			echo "DB接続エラー:" . $e->getMessage();
+		}
+	}
+
+	// 通常のリクエストの場合は従来通りリダイレクト
+	header('Location:' . PHP_SELF);
+	def();
+}

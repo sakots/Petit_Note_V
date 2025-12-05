@@ -1278,7 +1278,8 @@ function init_sqlite_db(): void {
 			host TEXT,
 			userid TEXT,
 			hash TEXT,
-			oya TEXT
+			oya TEXT,
+			sodane INTEGER DEFAULT 0
 		)");
 		$db->exec("CREATE INDEX IF NOT EXISTS idx_no ON posts(no)");
 		$db->exec("CREATE INDEX IF NOT EXISTS idx_time ON posts(time)");
@@ -1303,14 +1304,14 @@ function get_db(): PDO {
 // ログをSQLiteに保存
 function insert_post($data): void {
 	$db = get_db();
-	$stmt = $db->prepare("INSERT INTO posts (no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+	$stmt = $db->prepare("INSERT INTO posts (no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya, sodane) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 	$stmt->execute($data);
 }
 
 // 全体ログをSQLiteから取得
 function get_alllog_arr(): array {
 	$db = get_db();
-	$stmt = $db->query("SELECT no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya FROM posts ORDER BY id");
+	$stmt = $db->query("SELECT no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya, sodane FROM posts ORDER BY id");
 	$alllog_arr = [];
 	while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
 		$alllog_arr[] = implode("\t", $row);
@@ -1321,7 +1322,7 @@ function get_alllog_arr(): array {
 // 個別ログをSQLiteから取得
 function get_thread_arr($no): array {
 	$db = get_db();
-	$stmt = $db->prepare("SELECT no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya FROM posts WHERE no = ? ORDER BY id");
+	$stmt = $db->prepare("SELECT no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya, sodane FROM posts WHERE no = ? ORDER BY id");
 	$stmt->execute([$no]);
 	$thread_arr = [];
 	while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
@@ -1373,10 +1374,10 @@ function check_file ($path): void {
 }
 function initial_error_message(): array {
 	global $en;
-	$msg['001']=$en ? ' does not exist.':'がありません。'; 
-	$msg['002']=$en ? ' is not readable.':'を読めません。'; 
-	$msg['003']=$en ? ' is not writable.':'を書けません。'; 
-return $msg;	
+	$msg['001']=$en ? ' does not exist.':'がありません。';
+	$msg['002']=$en ? ' is not readable.':'を読めません。';
+	$msg['003']=$en ? ' is not writable.':'を書けません。';
+return $msg;
 }
 
 // 一括書き込み（上書き）
@@ -1468,7 +1469,7 @@ function calc_remaining_time_to_close_thread ($sec): string {
 		return (int)$D.$day;
 	}
 	if($H){
-		$hour = ($H>1) ? ' hours' : ' hour'; 
+		$hour = ($H>1) ? ' hours' : ' hour';
 		$hour = $en ? $hour : '時間';
 
 		return  (int)$H.$hour;
@@ -1524,7 +1525,7 @@ function time_left_to_close_the_thread ($postedtime): string {
 	//残り時間が60日を切ったら表示
 	return ($timeleft<(60 * 86400)) ? 
 	calc_remaining_time_to_close_thread($timeleft) : '';
-}	
+}
 // マイクロ秒を秒に戻す
 function microtime2time($microtime): int {
 	$microtime=(string)$microtime;
