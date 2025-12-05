@@ -1244,9 +1244,9 @@ function init(): void {
 	check_dir(__DIR__."/log");
 	check_dir(__DIR__."/webp");
 	check_dir(__DIR__."/template/cache");
-	if(!is_file(LOG_DIR.'alllog.log')){
-	file_put_contents(LOG_DIR.'alllog.log','',FILE_APPEND|LOCK_EX);
-	chmod(LOG_DIR.'alllog.log',0600);
+	// if(!is_file(LOG_DIR.'alllog.log')){
+	// file_put_contents(LOG_DIR.'alllog.log','',FILE_APPEND|LOCK_EX);
+	// chmod(LOG_DIR.'alllog.log',0600);
 	}
 	// SQLiteデータベース初期化
 	init_sqlite_db();
