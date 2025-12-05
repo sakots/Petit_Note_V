@@ -2468,7 +2468,7 @@ function res (): void {
 
 //そうだね
 function sodane(): void {
-	$resto = filter_input(INPUT_GET, 'resto', FILTER_VALIDATE_INT);
+	$so = filter_input(INPUT_GET, 'so', FILTER_VALIDATE_INT);
 
 	// Ajaxリクエストかどうかをチェック
 	$is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
@@ -2476,11 +2476,11 @@ function sodane(): void {
 	try {
 		$db = get_db();
 		$stmt = $db->prepare("UPDATE posts SET sodane = sodane + 1 WHERE id = ?");
-		$stmt->execute([$resto]);
+		$stmt->execute([$so]);
 
 		// 更新後のそうだね数を取得
 		$stmt = $db->prepare("SELECT exid FROM posts WHERE id = ?");
-		$stmt->execute([$resto]);
+		$stmt->execute([$so]);
 		$result = $stmt->fetch();
 		$new_exid = $result['exid'] ?? 0;
 
