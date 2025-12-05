@@ -20,7 +20,7 @@ $boardname = "Petit Note";
 $sitename = "";
 
 // ホームページ(掲示板からの戻り先)
-$home = "./"; //相対パス、絶対パス、URLどれでもOK 
+$home = "./"; //相対パス、絶対パス、URLどれでもOK
 
 // 最大スレッド保存件数 この数値以上のスレッドは削除されます
 // 最低500スレッド。
@@ -29,6 +29,10 @@ $max_log = 5000;
 // メール通知のほか、シェアボタンなどで使用
 // 設置場所のurl `/`まで。
 $root_url = "http://example.com/oekaki/";
+
+// データベース名
+// 拡張子として .db が付きます。
+$database_name = "petit";
 
 // 名前を必須にする
 // しない: false の時に名前を空欄で投稿すると、｢anonymous｣になります。
@@ -547,7 +551,7 @@ $x_frame_options_deny=true;
 
 // SNSシェア機能詳細設定
 
-// シェア機能に、Mastodon、Misskeyの各サーバを含める 
+// シェア機能に、Mastodon、Misskeyの各サーバを含める
 // 含める: true 含めない: false
 
 $switch_sns = true;
@@ -641,7 +645,7 @@ define("TEMP_DIR","temp/");
 // ログ
 define("LOG_DIR","log/");
 // SQLiteデータベース
-define("DB_PATH",LOG_DIR."board.db");
+define("DB_PATH",LOG_DIR.$database_name.".db");
 // 画像
 define("IMG_DIR","src/");
 // 画像
