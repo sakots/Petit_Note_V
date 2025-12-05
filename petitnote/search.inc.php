@@ -215,21 +215,17 @@ class processsearch
 		}
 		$i = 0;
 		$j = 0;
-		$fp = fopen("log/alllog.log", "r");
-		while ($log = fgets($fp)) {
-			if (!trim($log)) {
-				continue;
-			}
-			list($resno) = explode("\t", $log, 2);
-			$resno = basename($resno);
+		$db = get_db();
+		$stmt = $db->query("SELECT DISTINCT no FROM posts ORDER BY id");
+		$thread_nos = $stmt->fetchAll(PDO::FETCH_COLUMN);
+		foreach ($thread_nos as $resno) {
 			//個別スレッドのループ
-			if (!is_file(LOG_DIR . "{$resno}.log")) {
+			$thread_arr = get_thread_arr($resno);
+			if (empty($thread_arr)) {
 				continue;
 			}
-			$rp = fopen("log/{$resno}.log", "r");
-			while ($line = fgets($rp)) {
-
-				$lines = explode("\t", $line);
+			foreach ($thread_arr as $line) {
+				$lines = explode("\t", trim($line));
 				//ホスト名とパスワードハッシュは含めない
 				list($no, $sub, $name, $verified, $com, $url, $imgfile, $w, $h, $thumbnail, $painttime, $log_img_hash, $tool, $pchext, $time, $first_posted_time,, $userid,, $oya) = $lines;
 
@@ -265,13 +261,11 @@ class processsearch
 					}
 				}
 			}
-			fclose($rp);
 			if ($j >= 10000) {
 				break;
 			} //1掲示板あたりの最大行数
 			++$j;
 		}
-		fclose($fp);
 
 		$_SESSION['search_result'] = $arr;
 		return $arr;

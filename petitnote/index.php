@@ -3,8 +3,8 @@
 //https://paintbbs.sakura.ne.jp/
 //1スレッド1ログファイル形式のスレッド式画像掲示板
 
-$petit_ver='v1.158.5';
-$petit_lot='lot.20251203';
+$petit_ver='v1.158.5v';
+$petit_lot='lot.20251205';
 
 $lang = ($http_langs = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '')
   ? explode( ',', $http_langs )[0] : '';
@@ -471,19 +471,10 @@ function post(): void {
 
 	$verified = $adminpost ? 'adminpost' : ''; 
 
-	//全体ログを開く
-	chmod(LOG_DIR."alllog.log",0600);
-	$fp=fopen(LOG_DIR."alllog.log","r+");
-	if(!$fp){
-		safe_unlink($upfile);
-		error($en?'This operation has failed.':'失敗しました。');
-	}
-	file_lock($fp, LOCK_EX);
-
-	$alllog_arr = create_array_from_fp($fp);
+	//全体ログを取得
+	$alllog_arr = get_alllog_arr();
 	if($resto){//投稿数が0の時には空になるため、レス時のみチェック
 		if(empty($alllog_arr)){
-			closeFile($fp);
 			safe_unlink($upfile);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
@@ -505,8 +496,6 @@ function post(): void {
 		list($no_,$sub_,$name_,$verified_,$com_,$url_,$imgfile_,$w_,$h_,$thumbnail_,$painttime_,$log_img_hash_,$tool_,$pchext_,$time_,$first_posted_time_,$host_,$userid_,$hash_,$oya_)=$chk_ex_line;
 		if($m2time===microtime2time($time_)){//投稿時刻の重複回避
 			safe_unlink($upfile);
-			closeFile($fp);
-			closeFile($rp);
 			error($en? 'Please wait a little.':'少し待ってください。');
 		}
 		if($userid === $userid_){
@@ -524,8 +513,6 @@ function post(): void {
 		list($_no_,$_sub_,$_name_,$_verified_,$_com_,$_url_,$_imgfile_,$_w_,$_h_,$_thumbnail_,$_painttime_,$_log_img_hash_,$_tool_,$_pchext_,$_time_,$_first_posted_time_,$_host_,$_userid_,$_hash_,$_oya_)=$line;
 
 		if(!$adminpost && ($com && ($com === $_com_))){
-			closeFile($fp);
-			closeFile($rp);
 			safe_unlink($upfile);
 			error($en?'Post once by this comment.':'同じコメントがありました。');
 		}
@@ -533,8 +520,6 @@ function post(): void {
 		// 画像アップロードと画像なしそれぞれの待機時間
 		$interval=(int)time()-(int)microtime2time($_time_);
 		if($interval>=0 && (($upfile && $interval<30)||(!$upfile && $interval<20))){//待機時間がマイナスの時は通す
-			closeFile($fp);
-			closeFile($rp);
 			safe_unlink($upfile);
 			error($en? 'Please wait a little.':'少し待ってください。');
 		}
@@ -554,8 +539,6 @@ function post(): void {
 
 		$ext=get_image_type($upfile);
 		if (!$ext) {
-			closeFile($fp);
-			closeFile($rp);
 			safe_unlink($upfile);
 			error($en? 'This file is an unsupported format.':'対応していないファイル形式です。');
 		}
@@ -567,8 +550,6 @@ function post(): void {
 			foreach($chk_images as $line){
 				list($no_,$sub_,$name_,$verified_,$com_,$url_,$imgfile_,$w_,$h_,$thumbnail_,$painttime_,$log_img_hash,$tool_,$pchext_,$time_,$first_posted_time_,$host_,$userid_,$hash_,$oya_)=$line;
 				if(!adminpost_valid() && ($log_img_hash && ($log_img_hash === $up_img_hash))){
-					closeFile($fp);
-					closeFile($rp);
 					safe_unlink($upfile);
 					error($en?'Image already exists.':'同じ画像がありました。');
 				}
@@ -633,37 +614,25 @@ function post(): void {
 		$r_oya='';
 		$r_no='';
 		if(empty($r_arr)){
-			closeFile($fp);
-			closeFile($rp);
 			safe_unlink(IMG_DIR.$imgfile);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
 		//レス先はoya?
 		list($r_no,,,,,,,,,,,,,,,,,,,$r_oya)=explode("\t",trim($r_arr[0]));
 		if($r_no!==$resto||$r_oya!=='oya'){
-			closeFile($fp);
-			closeFile($rp);
 			safe_unlink(IMG_DIR.$imgfile);
 			error($en? 'The article does not exist.':'記事がありません。');
 		}
 
 		$r_line = "$resto\t$sub\t$name\t$verified\t$com\t$url\t$imgfile\t$w\t$h\t$thumbnail\t$painttime\t$up_img_hash\t$tool\t$pchext\t$time\t$time\t$host\t$userid\t$hash\tres\n";
-		$new_rline=	implode("",$r_arr).$r_line;
-
-		writeFile($rp,$new_rline);
-		closeFile($rp);
+		//SQLiteにINSERT
+		insert_post(explode("\t", trim($r_line)));
 
 		if(!$sage){
-			foreach($alllog_arr as $i =>$val){
-				if (strpos(trim($val), $resto . "\t") === 0) {//全体ログで$noが一致したら
-					list($_no)=explode("\t",$val,2);
-					if($resto==$_no){
-						$newline = $val;//レスが付いたスレッドを$newlineに保存。あとから全体ログの先頭に追加して上げる
-						unset($alllog_arr[$i]);//レスが付いたスレッドを全体ログからいったん削除
-						break;
-					}
-				}
-			}	
+			//oyaのtimeを更新して先頭に
+			$db = get_db();
+			$stmt = $db->prepare("UPDATE posts SET time = ? WHERE no = ? AND oya = 'oya'");
+			$stmt->execute([$time, $resto]);
 		}
 
 	}else{
@@ -673,9 +642,8 @@ function post(): void {
 		$strcut_com=mb_strcut($com,0,120);
 		$newline = "$no\t$sub\t$name\t$verified\t$strcut_com\t$url\t$imgfile\t$w\t$h\t$thumbnail\t$painttime\t$up_img_hash\t$tool\t$pchext\t$time\t$time\t$host\t$userid\t$hash\toya\n";
 		$new_r_line = "$no\t$sub\t$name\t$verified\t$com\t$url\t$imgfile\t$w\t$h\t$thumbnail\t$painttime\t$up_img_hash\t$tool\t$pchext\t$time\t$time\t$host\t$userid\t$hash\toya\n";
-		check_open_no($no);
-		file_put_contents(LOG_DIR.$no.'.log',$new_r_line,LOCK_EX);//新規投稿の時は、記事ナンバーのファイルを作成して書き込む
-		chmod(LOG_DIR."{$no}.log",0600);
+		//SQLiteにINSERT
+		insert_post(explode("\t", trim($new_r_line)));
 	}
 
 	//保存件数超過処理
@@ -687,30 +655,16 @@ function post(): void {
 			continue;
 		}
 		list($d_no,)=explode("\t",$alllog_arr[$i],2);
-		if(is_file(LOG_DIR."{$d_no}.log")){
-			check_open_no($d_no);
-			$dp = fopen(LOG_DIR."{$d_no}.log", "r");//個別スレッドのログを開く
-			file_lock($dp, LOCK_EX);
-
-			while ($line = fgets($dp)) {
-				if(!trim($line)){
-					continue;
-				}
-				list($d_no,$_sub,$_name,$_verified,$_com,$_url,$d_imgfile,$_w,$_h,$_thumbnail,$_painttime,$_log_img_hash,$_tool,$_pchext,$d_time,$_first_posted_time,$_host,$_userid,$_hash,$_oya)=explode("\t",trim($line));
-
-				delete_files ($d_imgfile, $d_time);//一連のファイルを削除
-
-			}
-			closeFile($dp);
-			safe_unlink(LOG_DIR.$d_no.'.log');//スレッド個別ログファイル削除
-		}	
+		//スレッドのファイルを削除
+		$thread_arr = get_thread_arr($d_no);
+		foreach($thread_arr as $line){
+			list($d_no,$_sub,$_name,$_verified,$_com,$_url,$d_imgfile,$_w,$_h,$_thumbnail,$_painttime,$_log_img_hash,$_tool,$_pchext,$d_time,$_first_posted_time,$_host,$_userid,$_hash,$_oya)=explode("\t",trim($line));
+			delete_files ($d_imgfile, $d_time);//一連のファイルを削除
+		}
+		delete_thread($d_no);//SQLiteから削除
 		unset($alllog_arr[$i]);//全体ログ記事削除
 		}
 	}
-	$newline.=implode("",$alllog_arr);
-
-	writeFile ($fp, $newline);
-	closeFile($fp);
 
 	//ワークファイル削除
 	safe_unlink($src);
@@ -1115,11 +1069,10 @@ function to_continue(): void {
 	session_sta();
 	$enableappselect= $_SESSION['enableappselect'] ?? false;
 
-	if(!is_file(LOG_DIR."{$no}.log")){
+	$lines = get_thread_arr($no);
+	if(empty($lines)){
 		error($en? 'The article does not exist.':'記事がありません。');
 	}
-	check_open_no($no);
-	$rp=fopen(LOG_DIR."{$no}.log","r");
 	$i=0;
 	//スレッドが閉じてるかどうか
 	$oya_time=0;
@@ -1127,7 +1080,7 @@ function to_continue(): void {
 	//記事は存在するか
 	$flag = false;
 	$resid = '';
-	while ($line = fgets($rp)) {
+	foreach ($lines as $line) {
 		if(strpos($line,"\toya")!==false || strpos($line,"\t".$id."\t")!==false){
 			list($_no,$sub,$name,$verified,$com,$url,$_imgfile,$w,$h,$thumbnail,$painttime,$log_img_hash,$tool,$_pchext,$_time,$first_posted_time,$host,$userid,$hash,$oya)=explode("\t",trim($line));
 			if($oya==="oya"){
@@ -1142,8 +1095,6 @@ function to_continue(): void {
 		}
 		++$i;
 	}
-
-	closeFile ($rp);
 	//閉じていたら $res_max_over が true になる
 	$res_max_over=(!$adminpost && ($i>$max_res||!check_elapsed_days($oya_time)));
 
@@ -1228,12 +1179,11 @@ function download_app_dat(): void {
 	$no = (string)filter_input_data('POST', 'no',FILTER_VALIDATE_INT);
 	$id = (string)filter_input_data('POST', 'id');//intの範囲外
 
-	if(!is_file(LOG_DIR."{$no}.log")){
+	$lines = get_thread_arr($no);
+	if(empty($lines)){
 		error($en? 'The article does not exist.':'記事がありません。');
 	}
-	check_open_no($no);
-	$rp=fopen(LOG_DIR."{$no}.log","r");
-	while ($line = fgets($rp)) {
+	foreach ($lines as $line) {
 		if(!trim($line)){
 			continue;
 		}
@@ -1244,10 +1194,9 @@ function download_app_dat(): void {
 					error($en?'Password is incorrect.':'パスワードが違います。');
 				}
 				break;
-			} 
+			}
 		}
 	}
-	closeFile ($rp);
 	$time=basename($time);
 	$pchext = check_pch_ext(IMG_DIR.$time,['upload'=>true]);
 	$pchext=basename($pchext);
@@ -1357,42 +1306,20 @@ function img_replace(): void {
 		error($en?'Please attach an image.':'画像を添付してください。');
 	}
 	//ログ読み込み
-	if(!is_file(LOG_DIR."{$no}.log")){
-
-		if($is_upload_img){//該当記事が無い時はエラー
-			error($en? 'The article does not exist.':'記事がありません。');
-		} 
-		location_paintcom();//該当記事が無い時は新規投稿。
-	}
-
-	chmod(LOG_DIR."alllog.log",0600);
-	$fp=fopen(LOG_DIR."alllog.log","r+");
-	(array)$flock_option = $is_upload_img ? []: ['paintcom'=>true];
-	file_lock($fp, LOCK_EX,$flock_option);
-
-	$alllog_arr = create_array_from_fp($fp);
+	$alllog_arr = get_alllog_arr();
 
 	if(empty($alllog_arr)){
-		closeFile($fp);
 		if($is_upload_img){//該当記事が無い時はエラー
-			error($en?'This operation has failed.':'失敗しました。');
-		} 
+			error($en? 'The article does not exist.':'記事がありません。');
+		}
 		location_paintcom();//該当記事が無い時は新規投稿。
 	}
-	check_open_no($no);
-	chmod(LOG_DIR."{$no}.log",0600);
-	$rp=fopen(LOG_DIR."{$no}.log","r+");
-	(array)$flock_option = $is_upload_img ? []: ['paintcom'=>true];
-	file_lock($rp, LOCK_EX,$flock_option);
-
-	$r_arr = create_array_from_fp($rp);
+	$r_arr = get_thread_arr($no);
 
 	if(empty($r_arr)){
-		closeFile($rp);
-		closeFile($fp);
 		if($is_upload_img){//該当記事が無い時はエラー
 			error($en?'This operation has failed.':'失敗しました。');
-		} 
+		}
 		location_paintcom();//該当記事が無い時は新規投稿。
 	}
 
@@ -1405,8 +1332,6 @@ function img_replace(): void {
 
 				if($is_upload_img && ($_tool !== 'upload') || $is_painted_img && ($_tool === 'upload')) {
 					safe_unlink($tempfile);
-					closeFile($rp);
-					closeFile($fp);
 					error($en?'This operation has failed.':'失敗しました。');
 				}
 				if(($is_upload_img && $admindel) || (($adminpost||$admindel) && $_verified === 'adminpost') || ($pwd && password_verify($pwd,$_hash))){
@@ -1419,8 +1344,6 @@ function img_replace(): void {
 	}
 	if($flag && !check_elapsed_days($_time)&&(!$adminpost && !$admindel)){//指定日数より古い画像差し換えは新規投稿にする
 
-		closeFile($rp);
-		closeFile($fp);
 		if($is_upload_img){
 			error($en?'This operation has failed.':'失敗しました。');
 		} 
@@ -1428,8 +1351,6 @@ function img_replace(): void {
 	}
 
 	if(!$flag){
-		closeFile($rp);
-		closeFile($fp);
 		if($is_upload_img){//該当記事が無い時はエラー
 			error($en?'This operation has failed.':'失敗しました。');
 		} 
@@ -1442,8 +1363,6 @@ function img_replace(): void {
 		$move_uploaded = move_uploaded_file($up_tempfile,$upfile);
 		if(!$move_uploaded){//アップロード成功なら続行
 			safe_unlink($up_tempfile);
-			closeFile($rp);
-			closeFile($fp);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
 		//Exifをチェックして画像が回転している時と位置情報が付いている時は上書き保存
@@ -1454,8 +1373,6 @@ function img_replace(): void {
 	}
 
 	if(!is_file($upfile)){
-		closeFile($rp);
-		closeFile($fp);
 		if($is_upload_img){
 			error($en?'This operation has failed.':'失敗しました。');
 		}
@@ -1475,8 +1392,6 @@ function img_replace(): void {
 	$imgext = get_image_type($upfile);
 
 	if (!$imgext) {
-		closeFile($fp);
-		closeFile($rp);
 		safe_unlink($upfile);
 		error($en? 'This file is an unsupported format.':'対応していないファイル形式です。');
 	}
@@ -1495,8 +1410,6 @@ function img_replace(): void {
 
 		if($is_upload_img && ($m2time === microtime2time($chk_time))){//投稿時刻の重複回避
 			safe_unlink($upfile);
-			closeFile($fp);
-			closeFile($rp);
 			error($en? 'Please wait a little.':'少し待ってください。');
 		}
 		if(!$is_upload_img && ((string)$time === (string)$chk_time)){
@@ -1504,8 +1417,6 @@ function img_replace(): void {
 		}
 		if(!$admindel && $is_upload_img && ($chk_log_img_hash && ($chk_log_img_hash === $up_img_hash))){
 			safe_unlink($upfile);
-			closeFile($fp);
-			closeFile($rp);
 			error($en?'Image already exists.':'同じ画像がありました。');
 		}
 	}
@@ -1560,43 +1471,16 @@ function img_replace(): void {
 	
 	$r_line= "$_no\t$_sub\t$_name\t$_verified\t$_com\t$_url\t$imgfile\t$w\t$h\t$thumbnail\t$painttime\t$up_img_hash\t$tool\t$pchext\t$time\t$_first_posted_time\t$host\t$userid\t$_hash\t$_oya\n";
 
-	$r_arr[$i] = $r_line;
+	//SQLiteにUPDATE
+	$db = get_db();
+	$stmt = $db->prepare("UPDATE posts SET sub = ?, name = ?, verified = ?, com = ?, url = ?, imgfile = ?, w = ?, h = ?, thumbnail = ?, painttime = ?, img_hash = ?, tool = ?, pchext = ?, time = ?, first_posted_time = ?, host = ?, userid = ?, hash = ? WHERE no = ? AND time = ?");
+	$stmt->execute([$_sub, $_name, $_verified, $_com, $_url, $imgfile, $w, $h, $thumbnail, $painttime, $up_img_hash, $tool, $pchext, $time, $_first_posted_time, $host, $userid, $_hash, $_no, $_time]);
 
 	if($_oya ==='oya'){
-
-		$strcut_com=mb_strcut($_com,0,120);
-		$newline = "$_no\t$_sub\t$_name\t$_verified\t$strcut_com\t$_url\t$imgfile\t$w\t$h\t$thumbnail\t$painttime\t$up_img_hash\t$tool\t$pchext\t$time\t$_first_posted_time\t$host\t$userid\t$_hash\toya\n";
-
-		$flag=false;
-		foreach($alllog_arr as $i => $val){
-			if (strpos(trim($val), $no . "\t") === 0) {//全体ログで$noが一致したら
-				list($no_,$sub_,$name_,$verified_,$com_,$url_,$imgfile_,$w_,$h_,$thumbnail_,$painttime_,$log_img_hash_,$tool_,$pchext_,$time_,$first_posted_time_,$host_,$userid_,$hash_,$oya_) = explode("\t",trim($val));
-				break;
-			}
-		}
-		if(($id===$time_ && $no===$no_) &&
-		((($is_upload_img && $admindel) ||
-		(($adminpost||$admindel) && $verified_ === 'adminpost') ||
-		($pwd && password_verify($pwd,$hash_))))){
-			$alllog_arr[$i] = $newline;
-			$flag=true;
-		}
-		if(!$flag){
-			closeFile($rp);
-			closeFile($fp);
-			safe_unlink(IMG_DIR.$imgfile);
-			if($is_upload_img){//該当記事が無い時はエラー
-				error($en?'This operation has failed.':'失敗しました。');
-			} 
-			location_paintcom();//該当記事が無い時は新規投稿。
-		}
-
-		writeFile($fp,implode("",$alllog_arr));
-
+		//oyaのtimeを更新
+		$stmt = $db->prepare("UPDATE posts SET time = ? WHERE no = ? AND oya = 'oya'");
+		$stmt->execute([$time, $_no]);
 	}
-	writeFile($rp, implode("", $r_arr));
-	closeFile($rp);
-	closeFile($fp);
 	
 	//旧ファイル削除
 	delete_files($_imgfile, $_time);
@@ -1906,23 +1790,9 @@ function edit(): void {
 	}
 
 	//ログ読み込み
-	if(!is_file(LOG_DIR."{$no}.log")){
-		error($en? 'The article does not exist.':'記事がありません。');
-	}
-	chmod(LOG_DIR."alllog.log",0600);
-	$fp=fopen(LOG_DIR."alllog.log","r+");
-	file_lock($fp, LOCK_EX);
-
-	check_open_no($no);
-	chmod(LOG_DIR."{$no}.log",0600);
-	$rp=fopen(LOG_DIR."{$no}.log","r+");
-	file_lock($rp, LOCK_EX);
-
-	$r_arr = create_array_from_fp($rp);
+	$r_arr = get_thread_arr($no);
 
 	if(empty($r_arr)){
-		closeFile($rp);
-		closeFile($fp);
 		error($en?'This operation has failed.':'失敗しました。');
 	}
 
@@ -1966,7 +1836,7 @@ function edit(): void {
 		error($en?'Please write something.':'何か書いて下さい。');
 	}
 
-	$alllog_arr = create_array_from_fp($fp);
+	$alllog_arr = get_alllog_arr();
 
 	$n= 5;
 	$chk_log_arr=array_slice($alllog_arr,0,$n,false);
@@ -1978,8 +1848,6 @@ function edit(): void {
 			list($_no_,$_sub_,$_name_,$_verified_,$_com_,$_url_,$_imgfile_,$_w_,$_h_,$_thumbnail_,$_painttime_,$_log_img_hash_,$_tool_,$_pchext_,$_time_,$_first_posted_time_,$_host_,$_userid_,$_hash_,$_oya_)=explode("\t",trim($line));
 
 			if(!$admindel && ($userid===$_userid_) && ($id!==$_time_) && ($com && ($com!==$_com) && ($com === $_com_))){
-				closeFile($fp);
-				closeFile($rp);
 				error($en?'Post once by this comment.':'同じコメントがありました。');
 			}
 		}
@@ -2014,8 +1882,6 @@ function edit(): void {
 		$newline = "$_no\t$sub\t$name\t$verified\t$strcut_com\t$url\t$_imgfile\t$_w\t$_h\t$thumbnail\t$_painttime\t$_log_img_hash\t$_tool\t$pchext\t$_time\t$_first_posted_time\t$host\t$userid\t$hash\toya\n";
 
 		if(empty($alllog_arr)){
-			closeFile($rp);
-			closeFile($fp);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
 		$flag=false;
@@ -2032,17 +1898,12 @@ function edit(): void {
 			$flag=true;
 		}
 		if(!$flag){
-			closeFile($rp);
-			closeFile($fp);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
 
 		writeFile($fp,implode("",$alllog_arr));
 	}
 	writeFile($rp, implode("", $r_arr));
-
-	closeFile($rp);
-	closeFile($fp);
 
 	unset($_SESSION['userdel']);
 	delete_res_cache();
@@ -2088,19 +1949,9 @@ function del(): void {
 	$fp=fopen(LOG_DIR."alllog.log","r+");
 	file_lock($fp, LOCK_EX);
 
-	if(!is_file(LOG_DIR."{$no}.log")){
-		error($en? 'The article does not exist.':'記事がありません。');
-	}
-	check_open_no($no);
-	chmod(LOG_DIR."{$no}.log",0600);
-	$rp=fopen(LOG_DIR."{$no}.log","r+");
-	file_lock($rp, LOCK_EX);
-
-	$r_arr = create_array_from_fp($rp);
+	$r_arr = get_thread_arr($no);
 
 	if(empty($r_arr)){
-		closeFile ($rp);
-		closeFile($fp);
 		error($en?'This operation has failed.':'失敗しました。');
 	}
 
@@ -2111,8 +1962,6 @@ function del(): void {
 			if($id===$time && $no===$_no){
 				if(!$admindel){
 					if(!$pwd||!password_verify($pwd,$hash)){
-						closeFile ($rp);
-						closeFile($fp);
 						error($en?'Password is incorrect.':'パスワードが違います。');
 					}
 				}
@@ -2122,8 +1971,6 @@ function del(): void {
 		}
 	}
 	if(!$find){
-		closeFile ($rp);
-		closeFile($fp);
 		error($en?'The article was not found.':'記事が見つかりません。');
 	}
 
@@ -2152,15 +1999,11 @@ function del(): void {
 
 		if(($alllog_oya_deleted && ($no===$no_))||($id===$time_ && $no===$no_)){
 			if(!$alllog_oya_deleted && !$admindel && (!$pwd||!password_verify($pwd,$hash_))){
-				closeFile ($rp);
-				closeFile($fp);
 				error($en?'Password is incorrect.':'パスワードが違います。');//親削除ずみ、管理者では無い時はパスワードの一致を確認
 			}
 			$flag=true;
 		}
 		if(!$flag){
-			closeFile ($rp);
-			closeFile($fp);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
 
@@ -2168,36 +2011,31 @@ function del(): void {
 
 		if($count_r_arr===1 || (($count_r_arr===2) && $res_oya_deleted) || $delete_thread){//スレッドを削除する?
 
-				unset($alllog_arr[$j]);
 				foreach($r_arr as $r_line) {//スレッドの一連のファイルを削除
 					list($_no,$_sub,$_name,$_verified,$_com,$_url,$_imgfile,$_w,$_h,$_thumbnail,$_painttime,$_log_img_hash,$_tool,$_pchext,$_time,$_first_posted_time,$_host,$_userid,$_hash,$_oya)=explode("\t",trim($r_line));
-					
+
 					delete_files ($_imgfile, $_time);//一連のファイルを削除
-					
+
 				}
-				closeFile ($rp);
-				safe_unlink(LOG_DIR.$no.'.log');
+				delete_thread($no);//SQLiteから削除
 
 		}else{
 				delete_files ($imgfile, $time);//該当記事の一連のファイルを削除
 				$deleted_sub = $en? 'No subject':'無題';
-				$newline="$no\t$deleted_sub\t\t\t\t\t\t\t\t\t\t\t\t\t$time_\t$first_posted_time_\t$host_\t\t$hash_\toya\n";
-				$alllog_arr[$j]=$newline;
-				$r_arr[0]=$newline;
-				writeFile ($rp,implode("",$r_arr));
-				closeFile ($rp);
+				//oyaを削除済みに更新
+				$db = get_db();
+				$stmt = $db->prepare("UPDATE posts SET sub = ?, name = '', com = '', url = '', imgfile = '', userid = '', hash = ? WHERE no = ? AND oya = 'oya'");
+				$stmt->execute([$deleted_sub, $admin_pass, $no]);
 		}
-
-		writeFile($fp,implode("",$alllog_arr));
 
 	}else{//レスの削除のみ
 
-		unset($r_arr[$i]);
 		delete_files ($imgfile, $time);//一連のファイルを削除
-		writeFile ($rp,implode("",$r_arr));
-		closeFile ($rp);
+		//SQLiteから削除
+		$db = get_db();
+		$stmt = $db->prepare("DELETE FROM posts WHERE no = ? AND time = ?");
+		$stmt->execute([$no, $time]);
 	}
-	closeFile($fp);
 
 	unset($_SESSION['userdel']);
 	//多重送信防止
@@ -2240,26 +2078,24 @@ function catalog(): void {
 	$page=$page<0 ? 0 : $page;
 	$pagedef=$catalog_pagedef;
 
-	$fp=fopen(LOG_DIR."alllog.log","r");
-	$count_alllog=0;
-	$_res=[];
-	$out=[];
-	$oya=0;
-	while ($line = fgets($fp)) {
-		if(!trim($line)){
+	$alllog_arr = get_alllog_arr();
+	$count_alllog = count($alllog_arr);
+	$_res = [];
+	$out = [];
+	$oya = 0;
+	foreach ($alllog_arr as $line) {
+		if (!trim($line)) {
 			continue;
 		}
-		if($page <= $count_alllog && $count_alllog < $page+$pagedef){
-			$_res = create_res(explode("\t",trim($line)),['catalog'=>true]);//$lineから、情報を取り出す
+		if ($page <= $oya && $oya < $page + $pagedef) {
+			$_res = create_res(explode("\t", trim($line)), ['catalog' => true]);//$lineから、情報を取り出す
 			$out[$oya][] = $_res;//$lineから、情報を取り出す
-			if(empty($out[$oya])){
+			if (empty($out[$oya])) {
 				unset($out[$oya]);
 			}
-			++$oya;
 		}
-		++$count_alllog;
+		++$oya;
 	}
-	fclose($fp);
 
 	//管理者判定処理
 	$admindel=admindel_valid();
@@ -2317,20 +2153,19 @@ function view(): void {
 	session_sta();
 	unset ($_SESSION['enableappselect']);
 
-	$fp=fopen(LOG_DIR."alllog.log","r");
-	$article_nos=[];
-	$count_alllog=0;
-	while ($_line = fgets($fp)) {
-		if(!trim($_line)){
+	$alllog_arr = get_alllog_arr();
+	$article_nos = [];
+	$count_alllog = 0;
+	foreach ($alllog_arr as $_line) {
+		if (!trim($_line)) {
 			continue;
 		}
-		if($page <= $count_alllog && $count_alllog < $page+$pagedef){
-			list($_no)=explode("\t",trim($_line),2);
-			$article_nos[]=$_no;	
+		if ($page <= $count_alllog && $count_alllog < $page + $pagedef) {
+			list($_no) = explode("\t", trim($_line), 2);
+			$article_nos[] = $_no;
 		}
 		++$count_alllog;//処理の後半で記事数のカウントとして使用
 	}
-	fclose($fp);
 
 	$index_cache_json = __DIR__.'/template/cache/index_cache.json';
 
@@ -2343,16 +2178,13 @@ function view(): void {
 		foreach($article_nos as $oya => $no){
 
 			//個別スレッドのループ
-			if(!is_file(LOG_DIR."{$no}.log")){
-				continue;	
-			}
 			$_res=[];
 			$out[$oya]=[];
 			$find_hide_thumbnail=false;
-			check_open_no($no);
-			$rp = fopen(LOG_DIR."{$no}.log", "r");//個別スレッドのログを開く
-			$lines=create_array_from_fp($rp);
-			fclose($rp);
+			$lines = get_thread_arr($no);
+			if(empty($lines)){
+				continue;
+			}
 			$countres=count($lines);
 			$com_skipres= $dispres ? ($countres-($dispres+1)) : 0;
 
@@ -2439,15 +2271,15 @@ function res_view_other_works($resno): array
 {
 	global $view_other_works;
 
-	$fp = fopen(LOG_DIR . "alllog.log", "r");
-	$count_alllog = 0;
+	$alllog_arr = get_alllog_arr();
+	$count_alllog = count($alllog_arr);
 	$i = 0;
 	$j = 0;
 	$find = false;
 	$articles1 = [];
 	$articles2 = [];
 
-	while ($line = fgets($fp)) {
+	foreach ($alllog_arr as $line) {
 		if (!trim($line)) {
 			continue;
 		}
@@ -2463,9 +2295,8 @@ function res_view_other_works($resno): array
 		}
 		++$j;
 	}
-	rewind($fp);
 	$j = 0;
-	while ($line = fgets($fp)) { //メモリ消費量を削減するため二度ループ
+	foreach ($alllog_arr as $line) { //メモリ消費量を削減するため二度ループ
 		if (!trim($line)) {
 			continue;
 		}
@@ -2477,14 +2308,13 @@ function res_view_other_works($resno): array
 		}
 		++$j;
 	}
-	fclose($fp);
 
 	$next = $articles2[$i + 1] ?? '';
 	$prev = $articles1[$i - 1] ?? '';
 	$next = $next ? (create_res(explode("\t", trim($next)), ['catalog' => true])) : [];
 	$prev = $prev ? (create_res(explode("\t", trim($prev)), ['catalog' => true])) : [];
-	$next = (!empty($next) && is_file(LOG_DIR . "{$next['no']}.log")) ? $next : [];
-	$prev = (!empty($prev) && is_file(LOG_DIR . "{$prev['no']}.log")) ? $prev : [];
+	$next = (!empty($next) && get_thread_arr($next['no'])) ? $next : [];
+	$prev = (!empty($prev) && get_thread_arr($prev['no'])) ? $prev : [];
 
 	$rr1 = [];
 	$rr2 = [];
@@ -2551,26 +2381,24 @@ function res (): void {
 
 	unset ($_SESSION['enableappselect']);
 
-	if(!is_file(LOG_DIR."{$resno}.log")){
-		error($en?'Thread does not exist.':'スレッドがありません');	
+	$lines = get_thread_arr($resno);
+	if(empty($lines)){
+		error($en?'Thread does not exist.':'スレッドがありません');
 	}
 	$rresname = [];
 	$resname = '';
 	$oyaname='';
-	$find_hide_thumbnail=false;	
+	$find_hide_thumbnail=false;
 	$og_sub = '';
 	$og_name = '';
 	$og_resid = '';
 
-	check_open_no($resno);
-	$rp = fopen(LOG_DIR."{$resno}.log", "r");//個別スレッドのログを開く
-
 	$out[0]=[];
 
 	$og_img="";
-	$og_descriptioncom = ""; 
+	$og_descriptioncom = "";
 	$og_hide_thumbnail = "";
-	while ($line = fgets($rp)) {
+	foreach ($lines as $line) {
 		if(!trim($line)){
 			continue;
 		}
@@ -2580,7 +2408,7 @@ function res (): void {
 		}
 		if($_res['img']){
 			if($_res['hide_thumbnail']){
-				$find_hide_thumbnail=true;	
+				$find_hide_thumbnail=true;
 			}
 		}
 		if($_res['oya']==='oya'){
@@ -2593,7 +2421,7 @@ function res (): void {
 		// 投稿者名を配列にいれる
 			if (($oyaname !== $_res['name']) && !in_array($_res['name'], $rresname)) { // 重複チェックと親投稿者除外
 				$rresname[] = $_res['name'];
-		} 
+			}
 		if($_res['oya']==='oya' || $_res['first_posted_time'] === $resid){//親または最初の投稿時間と一致する時
 			$og_img = $_res['img'];
 			$og_descriptioncom = $_res['com'] ? h(s(mb_strcut($_res['com'],0,300))) :"";
@@ -2604,8 +2432,7 @@ function res (): void {
 		}
 		$out[0][]=$_res;
 		$out[0][0]['find_hide_thumbnail']=$find_hide_thumbnail;
-	}	
-	fclose($rp);
+	}
 	if(empty($out[0])||$out[0][0]['oya']!=='oya'){
 		error($en? 'The article does not exist.':'記事がありません。');
 	}

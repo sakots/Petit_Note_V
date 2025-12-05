@@ -640,6 +640,8 @@ define("CRYPT_IV","T3pkYxNyjN7Wz3pu");//半角英数16文字
 define("TEMP_DIR","temp/");
 // ログ
 define("LOG_DIR","log/");
+// SQLiteデータベース
+define("DB_PATH",LOG_DIR."board.db");
 // 画像
 define("IMG_DIR","src/");
 // 画像

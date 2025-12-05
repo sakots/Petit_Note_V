@@ -553,16 +553,9 @@ function create_chk_lins($chk_log_arr,$resno): array {
 	//条件分岐で新規投稿に変更になった時のエラー回避
 	foreach($chk_resnos as $chk_resno){
 		//$resnoのログファイルは開かない
-		if(($chk_resno!==$resno)&&is_file(LOG_DIR."{$chk_resno}.log")){
-			check_open_no($chk_resno);
-			$cp=fopen(LOG_DIR."{$chk_resno}.log","r");
-			while($line=fgets($cp)){
-				if(!trim($line)){
-					continue;
-				}
-				$chk_lines[]=$line;
-			}
-			closefile($cp);
+		if($chk_resno!==$resno){
+			$thread_arr = get_thread_arr($chk_resno);
+			$chk_lines = array_merge($chk_lines, $thread_arr);
 		}
 	}
 	return $chk_lines;
@@ -1244,7 +1237,7 @@ function is_badhost(): bool {
 
 //初期化
 function init(): void {
-	
+
 	check_dir(__DIR__."/src");
 	check_dir(__DIR__."/temp");
 	check_dir(__DIR__."/thumbnail");
@@ -1253,8 +1246,95 @@ function init(): void {
 	check_dir(__DIR__."/template/cache");
 	if(!is_file(LOG_DIR.'alllog.log')){
 	file_put_contents(LOG_DIR.'alllog.log','',FILE_APPEND|LOCK_EX);
-	chmod(LOG_DIR.'alllog.log',0600);	
+	chmod(LOG_DIR.'alllog.log',0600);
 	}
+	// SQLiteデータベース初期化
+	init_sqlite_db();
+}
+
+// SQLiteデータベース初期化
+function init_sqlite_db(): void {
+	try {
+		$db = new PDO('sqlite:' . DB_PATH);
+		$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$db->exec("CREATE TABLE IF NOT EXISTS posts (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			no INTEGER NOT NULL,
+			sub TEXT,
+			name TEXT,
+			verified TEXT,
+			com TEXT,
+			url TEXT,
+			imgfile TEXT,
+			w TEXT,
+			h TEXT,
+			thumbnail TEXT,
+			painttime TEXT,
+			img_hash TEXT,
+			tool TEXT,
+			pchext TEXT,
+			time TEXT NOT NULL,
+			first_posted_time TEXT NOT NULL,
+			host TEXT,
+			userid TEXT,
+			hash TEXT,
+			oya TEXT
+		)");
+		$db->exec("CREATE INDEX IF NOT EXISTS idx_no ON posts(no)");
+		$db->exec("CREATE INDEX IF NOT EXISTS idx_time ON posts(time)");
+		$db->exec("CREATE INDEX IF NOT EXISTS idx_oya ON posts(oya)");
+	} catch (PDOException $e) {
+		error('Database initialization failed: ' . $e->getMessage());
+	}
+}
+
+// SQLiteデータベース接続
+function get_db(): PDO {
+	try {
+		$db = new PDO('sqlite:' . DB_PATH);
+		$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		return $db;
+	} catch (PDOException $e) {
+		error('Database connection failed: ' . $e->getMessage());
+		exit; // error()でexitするのでここは到達しないが、型チェックのため
+	}
+}
+
+// ログをSQLiteに保存
+function insert_post($data): void {
+	$db = get_db();
+	$stmt = $db->prepare("INSERT INTO posts (no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+	$stmt->execute($data);
+}
+
+// 全体ログをSQLiteから取得
+function get_alllog_arr(): array {
+	$db = get_db();
+	$stmt = $db->query("SELECT no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya FROM posts ORDER BY id");
+	$alllog_arr = [];
+	while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
+		$alllog_arr[] = implode("\t", $row);
+	}
+	return $alllog_arr;
+}
+
+// 個別ログをSQLiteから取得
+function get_thread_arr($no): array {
+	$db = get_db();
+	$stmt = $db->prepare("SELECT no, sub, name, verified, com, url, imgfile, w, h, thumbnail, painttime, img_hash, tool, pchext, time, first_posted_time, host, userid, hash, oya FROM posts WHERE no = ? ORDER BY id");
+	$stmt->execute([$no]);
+	$thread_arr = [];
+	while ($row = $stmt->fetch(PDO::FETCH_NUM)) {
+		$thread_arr[] = implode("\t", $row);
+	}
+	return $thread_arr;
+}
+
+// スレッドをSQLiteから削除
+function delete_thread($no): void {
+	$db = get_db();
+	$stmt = $db->prepare("DELETE FROM posts WHERE no = ?");
+	$stmt->execute([$no]);
 }
 
 //ディレクトリ作成
