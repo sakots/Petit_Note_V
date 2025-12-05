@@ -156,7 +156,7 @@ deltemp();//テンポラリ自動削除
 switch($mode){
 	case 'regist':
 		if($deny_all_posts){
-			return view();	
+			return view();
 		}
 		return post();
 	case 'paint':
@@ -171,7 +171,7 @@ switch($mode){
 		$type = (string)filter_input_data('POST', 'type');
 		if($type==='rep'||$password_require_to_continue){
 			check_cont_pass();
-		} 
+		}
 		return paint();
 	case 'set_app_select_enabled_session':
 		return set_app_select_enabled_session();
@@ -229,6 +229,8 @@ switch($mode){
 		return catalog();
 	case 'download':
 		return download_app_dat();
+	case 'sodane':
+		return sodane();
 	case '':
 		if($resno){
 			return res();
@@ -2479,19 +2481,17 @@ function sodane(): void {
 		$stmt->execute([$so]);
 
 		// 更新後のそうだね数を取得
-		$stmt = $db->prepare("SELECT exid FROM posts WHERE id = ?");
+		$stmt = $db->prepare("SELECT sodane FROM posts WHERE id = ?");
 		$stmt->execute([$so]);
 		$result = $stmt->fetch();
-		$new_exid = $result['exid'] ?? 0;
-
-		$db = null;
+		$new_sodane = $result['sodane'] ?? 0;
 
 		if ($is_ajax) {
 			// Ajaxリクエストの場合はJSONレスポンス
 			header('Content-Type: application/json');
 			echo json_encode([
 				'success' => true,
-				'exid' => $new_exid,
+				'sodane' => $new_sodane,
 				'message' => 'そうだねしました'
 			]);
 			return;
@@ -2512,5 +2512,4 @@ function sodane(): void {
 
 	// 通常のリクエストの場合は従来通りリダイレクト
 	header('Location:./');
-	def();
 }
