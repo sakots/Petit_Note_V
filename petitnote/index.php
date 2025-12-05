@@ -16,6 +16,13 @@ if (version_compare(PHP_VERSION, '7.3.0', '<')) {
 	);
 }
 
+// 必要なファイルの確認と読み込み
+
+// config存在確認
+if(!is_file(__DIR__.'/config.php')){
+	die(__DIR__.'/config.php'.($en ? ' does not exist.':'がありません。'));
+}
+
 if(!is_file(__DIR__.'/functions.php')){
 	die(__DIR__.'/functions.php'.($en ? ' does not exist.':'がありません。'));
 }
@@ -2198,6 +2205,7 @@ function view(): void {
 			}
 		}
 	}
+
 	unset($lines);
 	$aikotoba = aikotoba_valid();
 	$adminpost=adminpost_valid();
