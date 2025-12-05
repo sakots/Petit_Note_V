@@ -1426,8 +1426,6 @@ function img_replace(): void {
 	$imgfile = $time.$imgext;
 	rename($upfile,IMG_DIR.$imgfile);
 	if(!is_file(IMG_DIR.$imgfile)){
-		closeFile($rp);
-		closeFile($fp);
 		error($en?'This operation has failed.':'失敗しました。');
 	}
 	chmod(IMG_DIR.$imgfile,0606);
@@ -1817,8 +1815,6 @@ function edit(): void {
 		}
 	}
 	if(!$flag){
-		closeFile($rp);
-		closeFile($fp);
 		error($en?'This operation has failed.':'失敗しました。');
 	}
 
@@ -1831,8 +1827,6 @@ function edit(): void {
 	$com = $formatted_post['com'];
 
 	if(!$_imgfile && !$com && !$admindel){
-		closeFile($rp);
-		closeFile($fp);
 		error($en?'Please write something.':'何か書いて下さい。');
 	}
 
@@ -1980,8 +1974,6 @@ function del(): void {
 		$alllog_arr = create_array_from_fp($fp);
 
 		if(empty($alllog_arr)){
-			closeFile ($rp);
-			closeFile($fp);
 			error($en?'This operation has failed.':'失敗しました。');
 		}
 		$flag=false;
