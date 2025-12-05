@@ -30,3 +30,5 @@ config.php
 /code-coverage-report
 *.afphoto~lock~
 
+app/
+.DS_Store
