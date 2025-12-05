@@ -18,6 +18,7 @@ temp/
 tmp/
 cache/
 errorlog/
+config.php
 
 # Composer
 /vendor
