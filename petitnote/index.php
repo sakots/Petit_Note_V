@@ -62,12 +62,6 @@ if(!isset($noticemail_inc_ver)||$noticemail_inc_ver<20250315){
 
 check_file(__DIR__.'/config.php');
 require_once(__DIR__.'/config.php');
-// jQueryバージョン
-const JQUERY='jquery-3.7.0.min.js';
-check_file(__DIR__.'/lib/'.JQUERY);
-// luminous
-check_file(__DIR__.'/lib/lightbox/js/lightbox.min.js');
-check_file(__DIR__.'/lib/lightbox/css/lightbox.min.css');
 
 //テンプレート
 $skindir='template/'.$skindir;
