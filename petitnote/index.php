@@ -2511,6 +2511,6 @@ function sodane(): void {
 	}
 
 	// 通常のリクエストの場合は従来通りリダイレクト
-	header('Location:' . PHP_SELF);
+	header('Location:./');
 	def();
 }
