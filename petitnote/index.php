@@ -2036,7 +2036,7 @@ function saveimage(): void {
 //カタログ表示
 function catalog(): void {
 	global $home,$catalog_pagedef,$skindir,$display_link_back_to_home;
-	global $boardname,$petit_ver,$petit_lot,$set_nsfw,$en,$mark_sensitive_image; 
+	global $boardname,$petit_ver,$petit_lot,$set_nsfw,$en,$mark_sensitive_image,$root_url; 
 
 	aikotoba_required_to_view();
 	set_page_context_to_session();
